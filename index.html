@@ -159,12 +159,6 @@
     <div class="grid-container">
         <div class="grid" id="grid"></div>
     </div>
-    
-    <div class="info">
-        <span id="grid-info">Grid: 23 columns × 73 rows (1,679 cells total)</span>
-        <br>
-        <span id="sound-info">Black = 220Hz, White = 660Hz, Duration = 100ms per cell</span>
-    </div>
 
     <script>
         let COLS = 23;
@@ -602,27 +596,6 @@
                     gridElement.appendChild(cell);
                 }
             }
-            
-            updateGridInfo();
-            updateSoundInfo();
-        }
-
-        // Update grid information display
-        function updateGridInfo() {
-            const totalCells = COLS * ROWS;
-            document.getElementById('grid-info').textContent = 
-                `Grid: ${COLS} columns × ${ROWS} rows (${totalCells.toLocaleString()} cells total)`;
-        }
-
-        // Update sound information display
-        function updateSoundInfo() {
-            const baseFreq = parseInt(document.getElementById('baseFreq').value);
-            const freqDiff = parseInt(document.getElementById('freqDiff').value);
-            const bitTime = parseInt(document.getElementById('bitTime').value);
-            const totalDuration = ((COLS * ROWS * bitTime) / 1000).toFixed(1);
-            
-            document.getElementById('sound-info').textContent = 
-                `Black = ${baseFreq}Hz, White = ${baseFreq + freqDiff}Hz, Duration = ${bitTime}ms per cell (${totalDuration}s total)`;
         }
 
 // Resize grid based on user input (prime numbers only)
@@ -715,10 +688,6 @@
                 }
             });
             
-            // Update sound info when audio parameters change
-            ['baseFreq', 'freqDiff', 'bitTime'].forEach(id => {
-                document.getElementById(id).addEventListener('input', updateSoundInfo);
-            });
         }
 
         // Initialize the application
@@ -743,28 +712,7 @@
                     
                     gridElement.appendChild(cell);
                 }
-                updateGridInfo();
-            updateSoundInfo();
             }
-            
-
-        // Update grid information display
-        function updateGridInfo() {
-            const totalCells = COLS * ROWS;
-            document.getElementById('grid-info').textContent = 
-                `Grid: ${COLS} columns × ${ROWS} rows (${totalCells.toLocaleString()} cells total)`;
-        }
-
-        // Update sound information display
-        function updateSoundInfo() {
-            const baseFreq = parseInt(document.getElementById('baseFreq').value);
-            const freqDiff = parseInt(document.getElementById('freqDiff').value);
-            const bitTime = parseInt(document.getElementById('bitTime').value);
-            const totalDuration = ((COLS * ROWS * bitTime) / 1000).toFixed(1);
-            
-            document.getElementById('sound-info').textContent = 
-                `Black = ${baseFreq}Hz, White = ${baseFreq + freqDiff}Hz, Duration = ${bitTime}ms per cell (${totalDuration}s total)`;
-        }
 
         // Resize grid based on user input (prime numbers only)
         function resizeGrid() {
