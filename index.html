@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>23×73 Grid Painter</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            font-family: Arial, sans-serif;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .controls > div {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        input[type="number"] {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 4px;
+            border-radius: 3px;
+            width: 60px;
+            font-size: 14px;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #777;
+        }
+
+        label {
+            font-size: 14px;
+            margin: 0;
+        }
+
+        button {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #444;
+        }
+
+        .grid-container {
+            overflow: auto;
+            max-width: 100vw;
+            max-height: 70vh;
+            border: 2px solid #333;
+            border-radius: 4px;
+        }
+
+        .grid {
+            display: grid;
+            gap: 1px;
+            background-color: #333;
+            padding: 2px;
+        }
+
+        .cell {
+            width: 8px;
+            height: 8px;
+            background-color: black;
+            cursor: pointer;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .cell.white {
+            background-color: white;
+        }
+
+        .cell:hover {
+            opacity: 0.7;
+        }
+
+        .info {
+            margin-top: 15px;
+            color: #ccc;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>23×73 Grid Painter</h1>
+    
+    <div class="controls">
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <label for="cols">Columns (prime):</label>
+            <input type="number" id="cols" value="23" min="2" max="199" style="width: 60px; padding: 4px; background: #333; color: white; border: 1px solid #555; border-radius: 3px;">
+            
+            <label for="rows">Rows (prime):</label>
+            <input type="number" id="rows" value="73" min="2" max="199" style="width: 60px; padding: 4px; background: #333; color: white; border: 1px solid #555; border-radius: 3px;">
+            
+            <button onclick="resizeGrid()">Resize Grid</button>
+        </div>
+        
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button onclick="clearGrid()">Clear All</button>
+            <button onclick="fillGrid()">Fill All</button>
+        </div>
+        
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-top: 1px solid #444; padding-top: 15px; margin-top: 5px;">
+            <label for="baseFreq">Base Frequency (Hz):</label>
+            <input type="number" id="baseFreq" value="220" min="20" max="2000" style="width: 80px; padding: 4px; background: #333; color: white; border: 1px solid #555; border-radius: 3px;">
+            
+            <label for="freqDiff">White Cell +Hz:</label>
+            <input type="number" id="freqDiff" value="440" min="10" max="2000" style="width: 80px; padding: 4px; background: #333; color: white; border: 1px solid #555; border-radius: 3px;">
+            
+            <label for="bitTime">Bit Duration (ms):</label>
+            <input type="number" id="bitTime" value="100" min="10" max="1000" style="width: 80px; padding: 4px; background: #333; color: white; border: 1px solid #555; border-radius: 3px;">
+            
+            <button onclick="playSound()" id="playBtn">🔊 Play Sound</button>
+            <button onclick="stopSound()" id="stopBtn" disabled>⏹️ Stop</button>
+            <button onclick="downloadSound()" id="downloadBtn">💾 Download WAV</button>
+        </div>
+        
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-top: 1px solid #444; padding-top: 15px; margin-top: 10px;">
+            <label for="audioFile" style="cursor: pointer; background: #333; padding: 8px 16px; border: 1px solid #555; border-radius: 4px;">
+                📁 Upload Audio File
+                <input type="file" id="audioFile" accept="audio/*" style="display: none;" onchange="handleAudioUpload(event)">
+            </label>
+            <button onclick="decodeAudio()" id="decodeBtn" disabled>🔍 Decode to Image</button>
+            <button onclick="reverseImage()" id="reverseBtn" disabled>🔄 Reverse Dimensions</button>
+            <span id="uploadStatus" style="color: #888; font-size: 12px;"></span>
+        </div>
+        
+        <span class="info">Click any cell to toggle between black and white • Only prime numbers allowed for grid dimensions • Upload audio to decode back to image</span>
+    </div>
+    
+    <div class="grid-container">
+        <div class="grid" id="grid"></div>
+    </div>
+    
+    <div class="info">
+        <span id="grid-info">Grid: 23 columns × 73 rows (1,679 cells total)</span>
+        <br>
+        <span id="sound-info">Black = 220Hz, White = 660Hz, Duration = 100ms per cell</span>
+    </div>
+
+    <script>
+        let COLS = 23;
+        let ROWS = 73;
+        let grid = [];
+        let audioContext;
+        let isPlaying = false;
+        let currentTimeout;
+        let uploadedAudioBuffer = null;
+        let decodedGrid = null;
+
+        // Check if a number is prime
+        function isPrime(n) {
+            if (n < 2) return false;
+            if (n === 2) return true;
+            if (n % 2 === 0) return false;
+            
+            for (let i = 3; i <= Math.sqrt(n); i += 2) {
+                if (n % i === 0) return false;
+            }
+            return true;
+        }
+
+        // Get the nearest prime number (preferably higher)
+        function getNearestPrime(n) {
+            if (n < 2) return 2;
+            
+            // First try to find a prime >= n
+            for (let i = n; i <= n + 20; i++) {
+                if (isPrime(i)) return i;
+            }
+            
+            // If not found, look for a prime < n
+            for (let i = n - 1; i >= 2; i--) {
+                if (isPrime(i)) return i;
+            }
+            
+            return 2; // fallback
+        }
+
+        // Initialize audio context
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Play a tone at given frequency for given duration
+        function playTone(frequency, duration, startTime) {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(frequency, startTime);
+            oscillator.type = 'sine';
+            
+            // Envelope to avoid clicks
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(0.1, startTime + 0.01);
+            gainNode.gain.setValueAtTime(0.1, startTime + duration - 0.01);
+            gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+            
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration);
+        }
+
+        // Generate audio buffer from grid
+        function generateAudioBuffer() {
+            initAudio();
+            
+            const baseFreq = parseInt(document.getElementById('baseFreq').value);
+            const freqDiff = parseInt(document.getElementById('freqDiff').value);
+            const bitDuration = parseInt(document.getElementById('bitTime').value) / 1000;
+            
+            const sampleRate = audioContext.sampleRate;
+            const totalSamples = Math.floor(ROWS * COLS * bitDuration * sampleRate);
+            const samplesPerBit = Math.floor(bitDuration * sampleRate);
+            
+            const buffer = audioContext.createBuffer(1, totalSamples, sampleRate);
+            const channelData = buffer.getChannelData(0);
+            
+            let sampleIndex = 0;
+            
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const isWhite = grid[row][col];
+                    const frequency = isWhite ? baseFreq + freqDiff : baseFreq;
+                    
+                    // Generate sine wave samples for this bit
+                    for (let i = 0; i < samplesPerBit && sampleIndex < totalSamples; i++) {
+                        const t = i / sampleRate;
+                        let amplitude = 0.1;
+                        
+                        // Apply envelope
+                        if (i < sampleRate * 0.01) {
+                            amplitude *= i / (sampleRate * 0.01);
+                        } else if (i > samplesPerBit - sampleRate * 0.01) {
+                            amplitude *= (samplesPerBit - i) / (sampleRate * 0.01);
+                        }
+                        
+                        channelData[sampleIndex] = amplitude * Math.sin(2 * Math.PI * frequency * t);
+                        sampleIndex++;
+                    }
+                }
+            }
+            
+            return buffer;
+        }
+
+        // Download audio as WAV file
+        function downloadSound() {
+            const buffer = generateAudioBuffer();
+            const wavData = audioBufferToWav(buffer);
+            const blob = new Blob([wavData], { type: 'audio/wav' });
+            
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `grid-sound-${COLS}x${ROWS}.wav`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Convert AudioBuffer to WAV format
+        function audioBufferToWav(buffer) {
+            const numChannels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+            const format = 1; // PCM
+            const bitDepth = 16;
+            
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+            
+            const data = [];
+            for (let i = 0; i < buffer.numberOfChannels; i++) {
+                data.push(buffer.getChannelData(i));
+            }
+            
+            const interleaved = interleave(data);
+            const dataLength = interleaved.length * bytesPerSample;
+            const headerLength = 44;
+            const fileLength = headerLength + dataLength;
+            
+            const arrayBuffer = new ArrayBuffer(fileLength);
+            const view = new DataView(arrayBuffer);
+            
+            // WAV header
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+            
+            writeString(0, 'RIFF');
+            view.setUint32(4, fileLength - 8, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, format, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitDepth, true);
+            writeString(36, 'data');
+            view.setUint32(40, dataLength, true);
+            
+            // Convert float samples to 16-bit PCM
+            let offset = 44;
+            for (let i = 0; i < interleaved.length; i++) {
+                const sample = Math.max(-1, Math.min(1, interleaved[i]));
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                offset += 2;
+            }
+            
+            return arrayBuffer;
+        }
+
+        function interleave(channelData) {
+            const length = channelData[0].length;
+            const numChannels = channelData.length;
+            const result = new Float32Array(length * numChannels);
+            
+            let inputIndex = 0;
+            for (let index = 0; index < length; index++) {
+                for (let channel = 0; channel < numChannels; channel++) {
+                    result[inputIndex] = channelData[channel][index];
+                    inputIndex++;
+                }
+            }
+            return result;
+        }
+
+        // Handle audio file upload
+        function handleAudioUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            document.getElementById('uploadStatus').textContent = 'Loading audio file...';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                initAudio();
+                audioContext.decodeAudioData(e.target.result)
+                    .then(buffer => {
+                        uploadedAudioBuffer = buffer;
+                        document.getElementById('decodeBtn').disabled = false;
+                        document.getElementById('uploadStatus').textContent = `Audio loaded: ${buffer.duration.toFixed(1)}s`;
+                    })
+                    .catch(err => {
+                        console.error('Error decoding audio:', err);
+                        document.getElementById('uploadStatus').textContent = 'Error loading audio file';
+                    });
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Decode audio to image
+        function decodeAudio() {
+            if (!uploadedAudioBuffer) return;
+            
+            document.getElementById('uploadStatus').textContent = 'Decoding audio...';
+            
+            const channelData = uploadedAudioBuffer.getChannelData(0);
+            const sampleRate = uploadedAudioBuffer.sampleRate;
+            const bitDuration = parseInt(document.getElementById('bitTime').value) / 1000;
+            const samplesPerBit = Math.floor(bitDuration * sampleRate);
+            
+            // Analyze frequency content of each bit
+            const bits = [];
+            const baseFreq = parseInt(document.getElementById('baseFreq').value);
+            const highFreq = baseFreq + parseInt(document.getElementById('freqDiff').value);
+            
+            for (let i = 0; i < channelData.length; i += samplesPerBit) {
+                const segment = channelData.slice(i, i + samplesPerBit);
+                if (segment.length < samplesPerBit / 2) break; // Skip incomplete segments
+                
+                // Simple frequency detection using zero crossings and amplitude
+                const avgAmplitude = segment.reduce((sum, val) => sum + Math.abs(val), 0) / segment.length;
+                
+                // Count zero crossings to estimate frequency
+                let zeroCrossings = 0;
+                for (let j = 1; j < segment.length; j++) {
+                    if ((segment[j] > 0) !== (segment[j-1] > 0)) {
+                        zeroCrossings++;
+                    }
+                }
+                
+                const estimatedFreq = (zeroCrossings * sampleRate) / (2 * segment.length);
+                
+                // Classify as 0 (low freq) or 1 (high freq)
+                const isHighFreq = Math.abs(estimatedFreq - highFreq) < Math.abs(estimatedFreq - baseFreq);
+                bits.push(isHighFreq ? 1 : 0);
+            }
+            
+            // Find prime factors for grid dimensions
+            const totalBits = bits.length;
+            const factors = findPrimeFactorPair(totalBits);
+            
+            if (!factors) {
+                document.getElementById('uploadStatus').textContent = `Cannot decode: ${totalBits} bits cannot be arranged as prime dimensions`;
+                return;
+            }
+            
+            const [newCols, newRows] = factors;
+            
+            // Update grid dimensions
+            COLS = newCols;
+            ROWS = newRows;
+            document.getElementById('cols').value = COLS;
+            document.getElementById('rows').value = ROWS;
+            
+            // Create new grid from decoded bits
+            decodedGrid = [];
+            let bitIndex = 0;
+            
+            for (let row = 0; row < ROWS; row++) {
+                decodedGrid[row] = [];
+                for (let col = 0; col < COLS; col++) {
+                    decodedGrid[row][col] = bitIndex < bits.length ? bits[bitIndex] === 1 : false;
+                    bitIndex++;
+                }
+            }
+            
+            // Update the visual grid
+            grid = decodedGrid.map(row => [...row]); // Deep copy
+            createGrid();
+            
+            document.getElementById('reverseBtn').disabled = false;
+            document.getElementById('uploadStatus').textContent = `Decoded to ${COLS}×${ROWS} grid (${totalBits} bits)`;
+        }
+
+        // Find two prime numbers that multiply to give the target (or close to it)
+        function findPrimeFactorPair(target) {
+            // Try to find primes that multiply to exactly the target
+            for (let i = 2; i <= Math.sqrt(target); i++) {
+                if (isPrime(i) && target % i === 0) {
+                    const other = target / i;
+                    if (isPrime(other)) {
+                        return [i, other];
+                    }
+                }
+            }
+            
+            // If no exact match, find the closest prime pair
+            let bestDiff = Infinity;
+            let bestPair = null;
+            
+            for (let i = 2; i <= Math.sqrt(target) + 10; i++) {
+                if (isPrime(i)) {
+                    const other = Math.round(target / i);
+                    const nearestPrime = getNearestPrime(other);
+                    const product = i * nearestPrime;
+                    const diff = Math.abs(product - target);
+                    
+                    if (diff < bestDiff && product >= target * 0.8) { // Allow some tolerance
+                        bestDiff = diff;
+                        bestPair = [i, nearestPrime];
+                    }
+                }
+            }
+            
+            return bestPair;
+        }
+
+        // Reverse image dimensions (swap rows and columns)
+        function reverseImage() {
+            if (!decodedGrid) return;
+            
+            // Swap dimensions
+            [COLS, ROWS] = [ROWS, COLS];
+            document.getElementById('cols').value = COLS;
+            document.getElementById('rows').value = ROWS;
+            
+            // Transpose the grid
+            const newGrid = [];
+            for (let col = 0; col < COLS; col++) {
+                newGrid[col] = [];
+                for (let row = 0; row < ROWS; row++) {
+                    newGrid[col][row] = decodedGrid[row] && decodedGrid[col][row] ? decodedGrid[col][row] : false;
+                }
+            }
+            
+            grid = newGrid;
+            decodedGrid = newGrid.map(row => [...row]); // Update decoded grid reference
+            createGrid();
+            
+            document.getElementById('uploadStatus').textContent = `Reversed to ${COLS}×${ROWS} grid`;
+        }
+
+        // Generate and play sound from grid
+        function playSound() {
+            initAudio();
+            
+            if (isPlaying) return;
+            
+            const baseFreq = parseInt(document.getElementById('baseFreq').value);
+            const freqDiff = parseInt(document.getElementById('freqDiff').value);
+            const bitDuration = parseInt(document.getElementById('bitTime').value) / 1000; // convert to seconds
+            
+            isPlaying = true;
+            document.getElementById('playBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            
+            let currentTime = audioContext.currentTime;
+            
+            // Generate sound sequence: left to right, top to bottom
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const isWhite = grid[row][col];
+                    const frequency = isWhite ? baseFreq + freqDiff : baseFreq;
+                    
+                    playTone(frequency, bitDuration, currentTime);
+                    currentTime += bitDuration;
+                }
+            }
+            
+            // Reset play state after audio finishes
+            const totalDuration = ROWS * COLS * bitDuration * 1000; // convert back to ms
+            currentTimeout = setTimeout(() => {
+                stopSound();
+            }, totalDuration + 100);
+        }
+
+        // Stop sound playback
+        function stopSound() {
+            isPlaying = false;
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            if (currentTimeout) {
+                clearTimeout(currentTimeout);
+                currentTimeout = null;
+            }
+        }
+
+        // Initialize grid with all black cells (false = black, true = white)
+        function initGrid() {
+            grid = [];
+            for (let row = 0; row < ROWS; row++) {
+                grid[row] = [];
+                for (let col = 0; col < COLS; col++) {
+                    grid[row][col] = false; // black
+                }
+            }
+        }
+
+        // Create the visual grid
+        function createGrid() {
+            const gridElement = document.getElementById('grid');
+            gridElement.innerHTML = '';
+            
+            // Update grid CSS properties
+            gridElement.style.gridTemplateColumns = `repeat(${COLS}, 8px)`;
+            gridElement.style.gridTemplateRows = `repeat(${ROWS}, 8px)`;
+            
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    
+                    // Apply current grid state
+                    if (grid[row][col]) {
+                        cell.classList.add('white');
+                    }
+                    
+                    cell.addEventListener('click', () => toggleCell(row, col));
+                    
+                    gridElement.appendChild(cell);
+                }
+            }
+            
+            updateGridInfo();
+            updateSoundInfo();
+        }
+
+        // Update grid information display
+        function updateGridInfo() {
+            const totalCells = COLS * ROWS;
+            document.getElementById('grid-info').textContent = 
+                `Grid: ${COLS} columns × ${ROWS} rows (${totalCells.toLocaleString()} cells total)`;
+        }
+
+        // Update sound information display
+        function updateSoundInfo() {
+            const baseFreq = parseInt(document.getElementById('baseFreq').value);
+            const freqDiff = parseInt(document.getElementById('freqDiff').value);
+            const bitTime = parseInt(document.getElementById('bitTime').value);
+            const totalDuration = ((COLS * ROWS * bitTime) / 1000).toFixed(1);
+            
+            document.getElementById('sound-info').textContent = 
+                `Black = ${baseFreq}Hz, White = ${baseFreq + freqDiff}Hz, Duration = ${bitTime}ms per cell (${totalDuration}s total)`;
+        }
+
+// Resize grid based on user input (prime numbers only)
+        function resizeGrid() {
+            const colsInput = document.getElementById('cols');
+            const rowsInput = document.getElementById('rows');
+            
+            let newCols = parseInt(colsInput.value);
+            let newRows = parseInt(rowsInput.value);
+            
+            // Ensure inputs are prime numbers
+            if (!isPrime(newCols)) {
+                newCols = getNearestPrime(newCols);
+                colsInput.value = newCols;
+            }
+            
+            if (!isPrime(newRows)) {
+                newRows = getNearestPrime(newRows);
+                rowsInput.value = newRows;
+            }
+            
+            if (newCols < 2 || newCols > 199 || newRows < 2 || newRows > 199) {
+                alert('Grid dimensions must be prime numbers between 2 and 199');
+                return;
+            }
+            
+            COLS = newCols;
+            ROWS = newRows;
+            
+            // Stop any playing sound
+            stopSound();
+            
+            // Reset decoded grid reference
+            decodedGrid = null;
+            document.getElementById('reverseBtn').disabled = true;
+            
+            initGrid();
+            createGrid();
+        }
+
+        // Toggle a cell's color
+        function toggleCell(row, col) {
+            grid[row][col] = !grid[row][col];
+            updateCellDisplay(row, col);
+        }
+
+        // Update the visual appearance of a single cell
+        function updateCellDisplay(row, col) {
+            const cellElement = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (grid[row][col]) {
+                cellElement.classList.add('white');
+            } else {
+                cellElement.classList.remove('white');
+            }
+        }
+
+        // Clear all cells (make them black)
+        function clearGrid() {
+            stopSound();
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    grid[row][col] = false;
+                    updateCellDisplay(row, col);
+                }
+            }
+        }
+
+        // Fill all cells (make them white)
+        function fillGrid() {
+            stopSound();
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    grid[row][col] = true;
+                    updateCellDisplay(row, col);
+                }
+            }
+        }
+
+        // Handle Enter key in input fields
+        function setupInputHandlers() {
+            document.getElementById('cols').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    resizeGrid();
+                }
+            });
+            
+            document.getElementById('rows').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    resizeGrid();
+                }
+            });
+            
+            // Update sound info when audio parameters change
+            ['baseFreq', 'freqDiff', 'bitTime'].forEach(id => {
+                document.getElementById(id).addEventListener('input', updateSoundInfo);
+            });
+        }
+
+        // Initialize the application
+        function init() {
+            initGrid();
+            createGrid();
+            setupInputHandlers();
+        }
+
+        // Start the app when page loads
+        window.addEventListener('load', init);
+    </script>
+    <script type="text/javascript">
+    let row = 0; (row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    
+                    cell.addEventListener('click', () => toggleCell(row, col));
+                    
+                    gridElement.appendChild(cell);
+                }
+                updateGridInfo();
+            updateSoundInfo();
+            }
+            
+
+        // Update grid information display
+        function updateGridInfo() {
+            const totalCells = COLS * ROWS;
+            document.getElementById('grid-info').textContent = 
+                `Grid: ${COLS} columns × ${ROWS} rows (${totalCells.toLocaleString()} cells total)`;
+        }
+
+        // Update sound information display
+        function updateSoundInfo() {
+            const baseFreq = parseInt(document.getElementById('baseFreq').value);
+            const freqDiff = parseInt(document.getElementById('freqDiff').value);
+            const bitTime = parseInt(document.getElementById('bitTime').value);
+            const totalDuration = ((COLS * ROWS * bitTime) / 1000).toFixed(1);
+            
+            document.getElementById('sound-info').textContent = 
+                `Black = ${baseFreq}Hz, White = ${baseFreq + freqDiff}Hz, Duration = ${bitTime}ms per cell (${totalDuration}s total)`;
+        }
+
+        // Resize grid based on user input (prime numbers only)
+        function resizeGrid() {
+            const colsInput = document.getElementById('cols');
+            const rowsInput = document.getElementById('rows');
+            
+            let newCols = parseInt(colsInput.value);
+            let newRows = parseInt(rowsInput.value);
+            
+            // Ensure inputs are prime numbers
+            if (!isPrime(newCols)) {
+                newCols = getNearestPrime(newCols);
+                colsInput.value = newCols;
+            }
+            
+            if (!isPrime(newRows)) {
+                newRows = getNearestPrime(newRows);
+                rowsInput.value = newRows;
+            }
+            
+            if (newCols < 2 || newCols > 199 || newRows < 2 || newRows > 199) {
+                alert('Grid dimensions must be prime numbers between 2 and 199');
+                return;
+            }
+            
+            COLS = newCols;
+            ROWS = newRows;
+            
+            // Stop any playing sound
+            stopSound();
+            
+            initGrid();
+            createGrid();
+        }
+
+        // Toggle a cell's color
+        function toggleCell(row, col) {
+            grid[row][col] = !grid[row][col];
+            updateCellDisplay(row, col);
+        }
+
+        // Update the visual appearance of a single cell
+        function updateCellDisplay(row, col) {
+            const cellElement = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (grid[row][col]) {
+                cellElement.classList.add('white');
+            } else {
+                cellElement.classList.remove('white');
+            }
+        }
+
+        // Clear all cells (make them black)
+        function clearGrid() {
+            stopSound();
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    grid[row][col] = false;
+                    updateCellDisplay(row, col);
+                }
+            }
+        }
+
+        // Fill all cells (make them white)
+        function fillGrid() {
+            stopSound();
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    grid[row][col] = true;
+                    updateCellDisplay(row, col);
+                }
+            }
+        }
+
+        // Handle Enter key in input fields
+        function setupInputHandlers() {
+            document.getElementById('cols').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    resizeGrid();
+                }
+            });
+            
+            document.getElementById('rows').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    resizeGrid();
+                }
+            });
+            
+            // Update sound info when audio parameters change
+            ['baseFreq', 'freqDiff', 'bitTime'].forEach(id => {
+                document.getElementById(id).addEventListener('input', updateSoundInfo);
+            });
+        }
+
+        // Initialize the application
+        function init() {
+            initGrid();
+            createGrid();
+            setupInputHandlers();
+        }
+
+        // Start the app when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
